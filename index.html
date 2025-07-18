@@ -2,14 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Lowify – MP3/MP4 Quality Reducer</title>
-  <!-- Load FFmpeg UMD module -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
-
+  <title>Shitified – MP3 Only</title>
   <style>
     body {
       background: #1c1c1e;
-      color: #fff;
+      color: white;
       font-family: sans-serif;
       display: flex;
       flex-direction: column;
@@ -18,167 +15,210 @@
     }
     input, button {
       margin: 1rem;
-      padding: 0.5rem 1rem;
+      padding: 0.6rem 1.2rem;
       font-size: 1rem;
     }
-    #status, #timeRemaining {
+    audio, canvas {
       margin-top: 1rem;
-      font-size: 1.1rem;
+      max-width: 90vw;
+      border-radius: 8px;
+      background: #222;
     }
-    #progressContainer {
+    #canvas {
+      display: none;
+    }
+    #status {
       margin-top: 1rem;
-      width: 300px;
-      height: 20px;
-      background-color: #333;
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    #progressBar {
-      height: 100%;
-      width: 0%;
-      background-color: #4caf50;
-      transition: width 0.1s linear;
     }
     #downloadLink {
-      margin-top: 1.5rem;
-      padding: 0.5rem 1rem;
-      background-color: #2f80ed;
+      margin-top: 1rem;
+      padding: 0.6rem 1rem;
+      background: #2f80ed;
+      border-radius: 6px;
       color: white;
       text-decoration: none;
-      border-radius: 5px;
       display: none;
+    }
+    .player-container {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 600px;
+    }
+    .player-label {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #aaa;
     }
   </style>
 </head>
 <body>
-  <h1>🎚️ Lowify Your Media</h1>
-  <input type="file" id="fileInput" accept=".mp3,.mp4" />
-  <button id="lowifyBtn">Lowify</button>
-  <div id="status">Waiting for file...</div>
-  <div id="timeRemaining"></div>
-  <div id="progressContainer">
-    <div id="progressBar"></div>
+  <h1>🎚️ Shitified Your MP3 (No FFmpeg)</h1>
+  <input type="file" id="fileInput" accept=".mp3,audio/*" />
+  <button id="lowifyBtn">Shitify</button>
+  <p id="status">Waiting for file...</p>
+
+  <!-- Original media player -->
+  <div id="originalContainer" class="player-container" style="display:none;">
+    <div class="player-label">Original Audio</div>
+    <audio id="originalAudio" controls></audio>
   </div>
-  <a id="downloadLink" download>⬇️ Download Lowified File</a>
+
+  <!-- Lowified media player -->
+  <div id="lowifiedContainer" class="player-container" style="display:none;">
+    <div class="player-label">Shitified Audio</div>
+    <audio id="lowifiedAudio" controls></audio>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <a id="downloadLink" download>⬇️ Download Shitified</a>
+
+  <!-- Include lamejs MP3 encoder -->
+  <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
 
   <script>
-    let ffmpeg;
-    let createFFmpeg;
-    let fetchFile;
-
-    window.addEventListener("load", async () => {
-      // Wait for FFmpeg to fully load from script
-      const waitForFFmpeg = () => new Promise(resolve => {
-        const interval = setInterval(() => {
-          if (window.FFmpeg && window.FFmpeg.createFFmpeg) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, 100);
-      });
-
-      await waitForFFmpeg();
-      createFFmpeg = window.FFmpeg.createFFmpeg;
-      fetchFile = window.FFmpeg.fetchFile;
-      ffmpeg = createFFmpeg({ log: true });
-    });
-
     const fileInput = document.getElementById("fileInput");
     const lowifyBtn = document.getElementById("lowifyBtn");
     const status = document.getElementById("status");
-    const timeRemaining = document.getElementById("timeRemaining");
-    const progressBar = document.getElementById("progressBar");
     const downloadLink = document.getElementById("downloadLink");
 
-    let timerInterval;
+    // Original media player
+    const originalContainer = document.getElementById("originalContainer");
+    const originalAudio = document.getElementById("originalAudio");
 
-    function startFakeCountdown(seconds) {
-      let remaining = seconds;
-      updateProgress(0);
-      timeRemaining.innerText = `Estimated time remaining: ${remaining}s`;
-
-      timerInterval = setInterval(() => {
-        remaining--;
-        if (remaining < 0) {
-          clearInterval(timerInterval);
-          timeRemaining.innerText = `Finalising...`;
-          return;
-        }
-        const progressPercent = ((seconds - remaining) / seconds) * 100;
-        updateProgress(progressPercent);
-        timeRemaining.innerText = `Estimated time remaining: ${remaining}s`;
-      }, 1000);
-    }
-
-    function updateProgress(percent) {
-      progressBar.style.width = `${percent}%`;
-    }
+    // Lowified media player
+    const lowifiedContainer = document.getElementById("lowifiedContainer");
+    const lowifiedAudio = document.getElementById("lowifiedAudio");
 
     lowifyBtn.onclick = async () => {
       const file = fileInput.files[0];
       if (!file) {
-        alert("Please choose an MP3 or MP4 file first.");
+        alert("Choose a file first.");
         return;
       }
 
-      if (!ffmpeg.isLoaded()) {
-        status.innerText = "Loading FFmpeg...";
-        await ffmpeg.load();
+      // Only accept mp3 or audio mime types (audio/mpeg is mp3)
+      if (!file.type.startsWith("audio/") || !file.name.endsWith(".mp3")) {
+        alert("Only MP3 audio files are supported.");
+        return;
       }
 
-      const inputName = file.name;
-      const outputName = inputName.endsWith('.mp3') ? 'output_low.mp3' : 'output_low.mp4';
-
-      ffmpeg.FS('writeFile', inputName, await fetchFile(file));
-
-      const estimatedTime = inputName.endsWith('.mp3') ? 10 : 15;
-      startFakeCountdown(estimatedTime);
-
-      status.innerText = "Processing file... Please wait.";
+      status.innerText = "Processing...";
       downloadLink.style.display = "none";
-      downloadLink.href = "";
+      lowifiedContainer.style.display = "none";
 
-      try {
-        if (inputName.endsWith('.mp3')) {
-          await ffmpeg.run(
-            '-i', inputName,
-            '-b:a', '64k',
-            outputName
-          );
-        } else if (inputName.endsWith('.mp4')) {
-          await ffmpeg.run(
-            '-i', inputName,
-            '-vf', 'scale=256:144',
-            '-b:v', '150k',
-            '-b:a', '64k',
-            outputName
-          );
-        } else {
-          status.innerText = "Unsupported file type.";
-          return;
+      // Show original audio player
+      const originalURL = URL.createObjectURL(file);
+      originalAudio.src = originalURL;
+      originalContainer.style.display = "flex";
+
+      await processAudio(file);
+    };
+
+    async function processAudio(file) {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+      // Downsample audio to 8000 Hz with distortion effect (bitcrusher)
+      const downsampleRate = 8000;
+
+      // Create OfflineAudioContext with 1 channel to simplify
+      const offlineCtx = new OfflineAudioContext(
+        1,
+        Math.floor(audioBuffer.duration * downsampleRate),
+        downsampleRate
+      );
+
+      // Create a buffer source for mono
+      const monoBuffer = offlineCtx.createBuffer(
+        1,
+        audioBuffer.length,
+        audioBuffer.sampleRate
+      );
+      const inputDataL = audioBuffer.getChannelData(0);
+      const outputData = monoBuffer.getChannelData(0);
+
+      // Mix down stereo to mono & apply bitcrusher effect (simple hard clipping)
+      for (let i = 0; i < audioBuffer.length; i++) {
+        let sample = inputDataL[i];
+        if (audioBuffer.numberOfChannels > 1) {
+          const inputDataR = audioBuffer.getChannelData(1);
+          sample = (inputDataL[i] + inputDataR[i]) / 2;
         }
 
-        clearInterval(timerInterval);
-        updateProgress(100);
-        timeRemaining.innerText = "Done!";
-        status.innerText = "Lowification complete 🎉";
+        // Bitcrusher effect: reduce bit depth by quantizing
+        const bitDepth = 4; // very low bit depth for shitty sound
+        const maxBit = Math.pow(2, bitDepth - 1) - 1;
+        sample = Math.max(-1, Math.min(1, sample));
+        sample = Math.floor(sample * maxBit) / maxBit;
 
-        const data = ffmpeg.FS('readFile', outputName);
-        const blob = new Blob([data.buffer], {
-          type: inputName.endsWith('.mp3') ? 'audio/mp3' : 'video/mp4'
-        });
-        const url = URL.createObjectURL(blob);
+        // Add some distortion clipping
+        if (sample > 0.6) sample = 0.6;
+        else if (sample < -0.6) sample = -0.6;
 
-        downloadLink.href = url;
-        downloadLink.download = outputName;
-        downloadLink.style.display = "inline";
-
-      } catch (err) {
-        clearInterval(timerInterval);
-        status.innerText = "Error during processing.";
-        console.error(err);
+        outputData[i] = sample;
       }
-    };
+
+      // Create source node
+      const source = offlineCtx.createBufferSource();
+      source.buffer = monoBuffer;
+      source.connect(offlineCtx.destination);
+      source.start(0);
+
+      const renderedBuffer = await offlineCtx.startRendering();
+
+      // Encode renderedBuffer as MP3 using lamejs
+      const mp3Blob = encodeMP3(renderedBuffer);
+
+      const url = URL.createObjectURL(mp3Blob);
+
+      // Show lowified audio player
+      lowifiedAudio.src = url;
+      lowifiedContainer.style.display = "flex";
+
+      downloadLink.href = url;
+      downloadLink.download = "shitified_audio.mp3";
+      downloadLink.style.display = "inline";
+      status.innerText = "Done!";
+    }
+
+    function encodeMP3(audioBuffer) {
+      const mp3Encoder = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 64); // 64 kbps mono (low quality)
+      const samples = audioBuffer.getChannelData(0);
+      const sampleBlockSize = 1152;
+      let mp3Data = [];
+
+      for (let i = 0; i < samples.length; i += sampleBlockSize) {
+        const sampleChunk = samples.subarray(i, i + sampleBlockSize);
+        // Convert float samples to 16-bit PCM
+        const pcm = floatTo16BitPCM(sampleChunk);
+        const mp3buf = mp3Encoder.encodeBuffer(pcm);
+        if (mp3buf.length > 0) {
+          mp3Data.push(new Int8Array(mp3buf));
+        }
+      }
+
+      const mp3buf = mp3Encoder.flush();
+      if (mp3buf.length > 0) {
+        mp3Data.push(new Int8Array(mp3buf));
+      }
+
+      // Create blob from mp3 chunks
+      return new Blob(mp3Data, { type: "audio/mp3" });
+    }
+
+    function floatTo16BitPCM(input) {
+      const output = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        let s = Math.max(-1, Math.min(1, input[i]));
+        output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return output;
+    }
   </script>
 </body>
 </html>
