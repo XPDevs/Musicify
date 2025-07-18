@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lowify – MP3/MP4 Quality Reducer</title>
+  <!-- Load FFmpeg UMD module -->
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+
+  <style>
+    body {
+      background: #1c1c1e;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+    input, button {
+      margin: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+    #status, #timeRemaining {
+      margin-top: 1rem;
+      font-size: 1.1rem;
+    }
+    #progressContainer {
+      margin-top: 1rem;
+      width: 300px;
+      height: 20px;
+      background-color: #333;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background-color: #4caf50;
+      transition: width 0.1s linear;
+    }
+    #downloadLink {
+      margin-top: 1.5rem;
+      padding: 0.5rem 1rem;
+      background-color: #2f80ed;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎚️ Lowify Your Media</h1>
+  <input type="file" id="fileInput" accept=".mp3,.mp4" />
+  <button id="lowifyBtn">Lowify</button>
+  <div id="status">Waiting for file...</div>
+  <div id="timeRemaining"></div>
+  <div id="progressContainer">
+    <div id="progressBar"></div>
+  </div>
+  <a id="downloadLink" download>⬇️ Download Lowified File</a>
+
+  <script>
+    let ffmpeg;
+    let createFFmpeg;
+    let fetchFile;
+
+    window.addEventListener("load", async () => {
+      // Wait for FFmpeg to fully load from script
+      const waitForFFmpeg = () => new Promise(resolve => {
+        const interval = setInterval(() => {
+          if (window.FFmpeg && window.FFmpeg.createFFmpeg) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 100);
+      });
+
+      await waitForFFmpeg();
+      createFFmpeg = window.FFmpeg.createFFmpeg;
+      fetchFile = window.FFmpeg.fetchFile;
+      ffmpeg = createFFmpeg({ log: true });
+    });
+
+    const fileInput = document.getElementById("fileInput");
+    const lowifyBtn = document.getElementById("lowifyBtn");
+    const status = document.getElementById("status");
+    const timeRemaining = document.getElementById("timeRemaining");
+    const progressBar = document.getElementById("progressBar");
+    const downloadLink = document.getElementById("downloadLink");
+
+    let timerInterval;
+
+    function startFakeCountdown(seconds) {
+      let remaining = seconds;
+      updateProgress(0);
+      timeRemaining.innerText = `Estimated time remaining: ${remaining}s`;
+
+      timerInterval = setInterval(() => {
+        remaining--;
+        if (remaining < 0) {
+          clearInterval(timerInterval);
+          timeRemaining.innerText = `Finalising...`;
+          return;
+        }
+        const progressPercent = ((seconds - remaining) / seconds) * 100;
+        updateProgress(progressPercent);
+        timeRemaining.innerText = `Estimated time remaining: ${remaining}s`;
+      }, 1000);
+    }
+
+    function updateProgress(percent) {
+      progressBar.style.width = `${percent}%`;
+    }
+
+    lowifyBtn.onclick = async () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("Please choose an MP3 or MP4 file first.");
+        return;
+      }
+
+      if (!ffmpeg.isLoaded()) {
+        status.innerText = "Loading FFmpeg...";
+        await ffmpeg.load();
+      }
+
+      const inputName = file.name;
+      const outputName = inputName.endsWith('.mp3') ? 'output_low.mp3' : 'output_low.mp4';
+
+      ffmpeg.FS('writeFile', inputName, await fetchFile(file));
+
+      const estimatedTime = inputName.endsWith('.mp3') ? 10 : 15;
+      startFakeCountdown(estimatedTime);
+
+      status.innerText = "Processing file... Please wait.";
+      downloadLink.style.display = "none";
+      downloadLink.href = "";
+
+      try {
+        if (inputName.endsWith('.mp3')) {
+          await ffmpeg.run(
+            '-i', inputName,
+            '-b:a', '64k',
+            outputName
+          );
+        } else if (inputName.endsWith('.mp4')) {
+          await ffmpeg.run(
+            '-i', inputName,
+            '-vf', 'scale=256:144',
+            '-b:v', '150k',
+            '-b:a', '64k',
+            outputName
+          );
+        } else {
+          status.innerText = "Unsupported file type.";
+          return;
+        }
+
+        clearInterval(timerInterval);
+        updateProgress(100);
+        timeRemaining.innerText = "Done!";
+        status.innerText = "Lowification complete 🎉";
+
+        const data = ffmpeg.FS('readFile', outputName);
+        const blob = new Blob([data.buffer], {
+          type: inputName.endsWith('.mp3') ? 'audio/mp3' : 'video/mp4'
+        });
+        const url = URL.createObjectURL(blob);
+
+        downloadLink.href = url;
+        downloadLink.download = outputName;
+        downloadLink.style.display = "inline";
+
+      } catch (err) {
+        clearInterval(timerInterval);
+        status.innerText = "Error during processing.";
+        console.error(err);
+      }
+    };
+  </script>
+</body>
+</html>
