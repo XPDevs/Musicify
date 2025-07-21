@@ -2,222 +2,236 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Shitified – MP3 Only</title>
+  <title>🎵 MP3 Audio Mod – Vinylify or Shitify</title>
   <style>
     body {
       background: #1c1c1e;
       color: white;
       font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
       padding: 2rem;
+      max-width: 800px;
+      margin: auto;
     }
-    input, button {
-      margin: 1rem;
+    h1, h2 {
+      text-align: center;
+    }
+    section {
+      margin-top: 2rem;
+      padding: 1rem;
+      border: 1px solid #444;
+      border-radius: 8px;
+      background: #2c2c2e;
+    }
+    button, input[type="file"] {
       padding: 0.6rem 1.2rem;
+      margin: 0.5rem;
       font-size: 1rem;
+      border: none;
+      border-radius: 5px;
     }
-    audio, canvas {
+    .option-btns {
+      text-align: center;
+      margin-top: 1.5rem;
+    }
+    .hidden {
+      display: none;
+    }
+    audio {
       margin-top: 1rem;
-      max-width: 90vw;
+      width: 100%;
+      max-width: 100%;
       border-radius: 8px;
       background: #222;
     }
-    #canvas {
-      display: none;
-    }
-    #status {
-      margin-top: 1rem;
-    }
     #downloadLink {
-      margin-top: 1rem;
-      padding: 0.6rem 1rem;
+      display: none;
       background: #2f80ed;
-      border-radius: 6px;
       color: white;
       text-decoration: none;
-      display: none;
-    }
-    .player-container {
-      margin-top: 1rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-      max-width: 600px;
     }
     .player-label {
-      margin-top: 0.5rem;
-      font-size: 0.9rem;
       color: #aaa;
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
-  <h1>🎚️ Shitified Your MP3 (No FFmpeg)</h1>
-  <input type="file" id="fileInput" accept=".mp3,audio/*" />
-  <button id="lowifyBtn">Shitify</button>
-  <p id="status">Waiting for file...</p>
+  <h1>🎵 MP3 Audio Mod</h1>
+  <p style="text-align:center;">Select how you want to modify your MP3: either make it hilariously bad or nostalgically vinyl-like.</p>
 
-  <!-- Original media player -->
-  <div id="originalContainer" class="player-container" style="display:none;">
-    <div class="player-label">Original Audio</div>
-    <audio id="originalAudio" controls></audio>
+  <div class="option-btns">
+    <button onclick="showSection('shitify')">😂 Shitify (Make it Sound Awful)</button>
+    <button onclick="showSection('vinylify')">📻 Vinylify (Make it Sound Like a Record)</button>
   </div>
 
-  <!-- Lowified media player -->
-  <div id="lowifiedContainer" class="player-container" style="display:none;">
-    <div class="player-label">Shitified Audio</div>
-    <audio id="lowifiedAudio" controls></audio>
-  </div>
+  <!-- Shitify Section -->
+  <section id="shitifySection" class="hidden">
+    <h2>😂 Shitify Audio</h2>
+    <p>This effect crushes the quality of your MP3 with low bitrate, heavy distortion, and mono downsampling. It's a joke tool – use it to make songs sound truly horrible.</p>
+    <input type="file" id="fileInputBad" accept=".mp3,audio/*" />
+    <button id="shitifyBtn">Shitify</button>
+    <p id="statusBad">Waiting for file...</p>
+    <div class="player-label">Original</div>
+    <audio id="originalAudioBad" controls></audio>
+    <div class="player-label">Shitified</div>
+    <audio id="shitifiedAudio" controls></audio>
+  </section>
 
-  <canvas id="canvas"></canvas>
+  <!-- Vinylify Section -->
+  <section id="vinylifySection" class="hidden">
+    <h2>📻 Vinylify Audio</h2>
+    <p>Add warmth, crackle, hiss, rumble, and imperfections just like a classic record. Perfect for lo-fi vibes or nostalgia.</p>
+    <input type="file" id="fileInputVinyl" accept=".mp3,audio/*" />
+    <button id="vinylifyBtn">Vinylify</button>
+    <p id="statusVinyl">Waiting for file...</p>
+    <div class="player-label">Original</div>
+    <audio id="originalAudioVinyl" controls></audio>
+    <div class="player-label">Vinylified</div>
+    <audio id="vinylifiedAudio" controls></audio>
+  </section>
 
-  <a id="downloadLink" download>⬇️ Download Shitified</a>
+  <a id="downloadLink" download>⬇️ Download Modified Audio</a>
 
-  <!-- Include lamejs MP3 encoder -->
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
-
   <script>
-    const fileInput = document.getElementById("fileInput");
-    const lowifyBtn = document.getElementById("lowifyBtn");
-    const status = document.getElementById("status");
-    const downloadLink = document.getElementById("downloadLink");
+    function showSection(section) {
+      document.getElementById('shitifySection').classList.add('hidden');
+      document.getElementById('vinylifySection').classList.add('hidden');
+      if (section === 'shitify') document.getElementById('shitifySection').classList.remove('hidden');
+      if (section === 'vinylify') document.getElementById('vinylifySection').classList.remove('hidden');
+    }
 
-    // Original media player
-    const originalContainer = document.getElementById("originalContainer");
-    const originalAudio = document.getElementById("originalAudio");
-
-    // Lowified media player
-    const lowifiedContainer = document.getElementById("lowifiedContainer");
-    const lowifiedAudio = document.getElementById("lowifiedAudio");
-
-    lowifyBtn.onclick = async () => {
-      const file = fileInput.files[0];
-      if (!file) {
-        alert("Choose a file first.");
-        return;
-      }
-
-      // Only accept mp3 or audio mime types (audio/mpeg is mp3)
-      if (!file.type.startsWith("audio/") || !file.name.endsWith(".mp3")) {
-        alert("Only MP3 audio files are supported.");
-        return;
-      }
-
+    // === SHITIFY ===
+    document.getElementById("shitifyBtn").onclick = async () => {
+      const file = document.getElementById("fileInputBad").files[0];
+      const status = document.getElementById("statusBad");
+      if (!file || !file.name.endsWith(".mp3")) return alert("Select an MP3 file first.");
       status.innerText = "Processing...";
-      downloadLink.style.display = "none";
-      lowifiedContainer.style.display = "none";
 
-      // Show original audio player
-      const originalURL = URL.createObjectURL(file);
-      originalAudio.src = originalURL;
-      originalContainer.style.display = "flex";
+      const originalAudio = document.getElementById("originalAudioBad");
+      const shitifiedAudio = document.getElementById("shitifiedAudio");
 
-      await processAudio(file);
-    };
-
-    async function processAudio(file) {
+      originalAudio.src = URL.createObjectURL(file);
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const arrayBuffer = await file.arrayBuffer();
       const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-      // Downsample audio to 8000 Hz with distortion effect (bitcrusher)
       const downsampleRate = 8000;
+      const offlineCtx = new OfflineAudioContext(1, audioBuffer.duration * downsampleRate, downsampleRate);
+      const monoBuffer = offlineCtx.createBuffer(1, audioBuffer.length, audioBuffer.sampleRate);
+      const out = monoBuffer.getChannelData(0);
+      const L = audioBuffer.getChannelData(0);
+      const R = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
 
-      // Create OfflineAudioContext with 1 channel to simplify
-      const offlineCtx = new OfflineAudioContext(
-        1,
-        Math.floor(audioBuffer.duration * downsampleRate),
-        downsampleRate
-      );
-
-      // Create a buffer source for mono
-      const monoBuffer = offlineCtx.createBuffer(
-        1,
-        audioBuffer.length,
-        audioBuffer.sampleRate
-      );
-      const inputDataL = audioBuffer.getChannelData(0);
-      const outputData = monoBuffer.getChannelData(0);
-
-      // Mix down stereo to mono & apply bitcrusher effect (simple hard clipping)
-      for (let i = 0; i < audioBuffer.length; i++) {
-        let sample = inputDataL[i];
-        if (audioBuffer.numberOfChannels > 1) {
-          const inputDataR = audioBuffer.getChannelData(1);
-          sample = (inputDataL[i] + inputDataR[i]) / 2;
-        }
-
-        // Bitcrusher effect: reduce bit depth by quantizing
-        const bitDepth = 4; // very low bit depth for shitty sound
-        const maxBit = Math.pow(2, bitDepth - 1) - 1;
-        sample = Math.max(-1, Math.min(1, sample));
-        sample = Math.floor(sample * maxBit) / maxBit;
-
-        // Add some distortion clipping
-        if (sample > 0.6) sample = 0.6;
-        else if (sample < -0.6) sample = -0.6;
-
-        outputData[i] = sample;
+      for (let i = 0; i < L.length; i++) {
+        let sample = R ? (L[i] + R[i]) / 2 : L[i];
+        const bitDepth = 4;
+        const max = Math.pow(2, bitDepth - 1) - 1;
+        sample = Math.floor(Math.max(-1, Math.min(1, sample)) * max) / max;
+        sample = Math.max(-0.6, Math.min(0.6, sample));
+        out[i] = sample;
       }
 
-      // Create source node
       const source = offlineCtx.createBufferSource();
       source.buffer = monoBuffer;
       source.connect(offlineCtx.destination);
-      source.start(0);
-
-      const renderedBuffer = await offlineCtx.startRendering();
-
-      // Encode renderedBuffer as MP3 using lamejs
-      const mp3Blob = encodeMP3(renderedBuffer);
-
+      source.start();
+      const rendered = await offlineCtx.startRendering();
+      const mp3Blob = encodeMP3(rendered);
       const url = URL.createObjectURL(mp3Blob);
-
-      // Show lowified audio player
-      lowifiedAudio.src = url;
-      lowifiedContainer.style.display = "flex";
-
-      downloadLink.href = url;
-      downloadLink.download = "shitified_audio.mp3";
-      downloadLink.style.display = "inline";
+      shitifiedAudio.src = url;
+      updateDownload(url, "shitified.mp3");
       status.innerText = "Done!";
+    };
+
+    // === VINYLIFY ===
+    document.getElementById("vinylifyBtn").onclick = async () => {
+      const file = document.getElementById("fileInputVinyl").files[0];
+      const status = document.getElementById("statusVinyl");
+      if (!file || !file.name.endsWith(".mp3")) return alert("Select an MP3 file first.");
+      status.textContent = "Applying vinyl effects...";
+
+      const originalAudio = document.getElementById("originalAudioVinyl");
+      const vinylifiedAudio = document.getElementById("vinylifiedAudio");
+
+      originalAudio.src = URL.createObjectURL(file);
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+      const sampleRate = 22050;
+      const offlineCtx = new OfflineAudioContext(1, sampleRate * audioBuffer.duration, sampleRate);
+      const monoBuffer = offlineCtx.createBuffer(1, audioBuffer.length, audioBuffer.sampleRate);
+      const out = monoBuffer.getChannelData(0);
+      const L = audioBuffer.getChannelData(0);
+      const R = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
+      const crackles = new Set();
+      while (crackles.size < 500) crackles.add(Math.floor(Math.random() * L.length));
+
+      for (let i = 0; i < L.length; i++) {
+        let sample = R ? (L[i] + R[i]) / 2 : L[i];
+        const wow = 0.003 * Math.sin(2 * Math.PI * 0.7 * i / sampleRate);
+        const warpedIndex = Math.max(0, Math.min(L.length - 1, Math.floor(i + wow * sampleRate)));
+        sample = L[warpedIndex];
+        sample *= 1.5;
+        sample = Math.max(-0.7, Math.min(0.7, sample));
+        const hiss = (Math.random() - 0.5) * 0.02;
+        const crackle = crackles.has(i) ? (Math.random() - 0.5) * 1.5 : 0;
+        const rumble = 0.003 * Math.sin(2 * Math.PI * 50 * i / sampleRate);
+        const mod = 1 + 0.01 * Math.sin(2 * Math.PI * 1 * i / sampleRate);
+        out[i] = (sample * mod) + hiss + crackle + rumble;
+      }
+
+      const source = offlineCtx.createBufferSource();
+      source.buffer = monoBuffer;
+      const lowpass = offlineCtx.createBiquadFilter();
+      lowpass.type = "lowpass";
+      lowpass.frequency.value = 4200;
+      const comp = offlineCtx.createDynamicsCompressor();
+      comp.threshold.value = -32;
+      comp.ratio.value = 4;
+      source.connect(lowpass);
+      lowpass.connect(comp);
+      comp.connect(offlineCtx.destination);
+      source.start();
+      const rendered = await offlineCtx.startRendering();
+      const mp3Blob = encodeMP3(rendered);
+      const url = URL.createObjectURL(mp3Blob);
+      vinylifiedAudio.src = url;
+      updateDownload(url, "vinylified.mp3");
+      status.textContent = "Done!";
+    };
+
+    function updateDownload(url, filename) {
+      const dl = document.getElementById("downloadLink");
+      dl.href = url;
+      dl.download = filename;
+      dl.style.display = "inline-block";
     }
 
     function encodeMP3(audioBuffer) {
-      const mp3Encoder = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 64); // 64 kbps mono (low quality)
+      const mp3 = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 64);
       const samples = audioBuffer.getChannelData(0);
-      const sampleBlockSize = 1152;
-      let mp3Data = [];
-
-      for (let i = 0; i < samples.length; i += sampleBlockSize) {
-        const sampleChunk = samples.subarray(i, i + sampleBlockSize);
-        // Convert float samples to 16-bit PCM
-        const pcm = floatTo16BitPCM(sampleChunk);
-        const mp3buf = mp3Encoder.encodeBuffer(pcm);
-        if (mp3buf.length > 0) {
-          mp3Data.push(new Int8Array(mp3buf));
-        }
+      const block = 1152;
+      let data = [];
+      for (let i = 0; i < samples.length; i += block) {
+        const chunk = samples.subarray(i, i + block);
+        const pcm = floatTo16(chunk);
+        const buf = mp3.encodeBuffer(pcm);
+        if (buf.length) data.push(new Int8Array(buf));
       }
-
-      const mp3buf = mp3Encoder.flush();
-      if (mp3buf.length > 0) {
-        mp3Data.push(new Int8Array(mp3buf));
-      }
-
-      // Create blob from mp3 chunks
-      return new Blob(mp3Data, { type: "audio/mp3" });
+      const end = mp3.flush();
+      if (end.length) data.push(new Int8Array(end));
+      return new Blob(data, { type: "audio/mp3" });
     }
 
-    function floatTo16BitPCM(input) {
-      const output = new Int16Array(input.length);
-      for (let i = 0; i < input.length; i++) {
-        let s = Math.max(-1, Math.min(1, input[i]));
-        output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    function floatTo16(chunk) {
+      const out = new Int16Array(chunk.length);
+      for (let i = 0; i < chunk.length; i++) {
+        const s = Math.max(-1, Math.min(1, chunk[i]));
+        out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
       }
-      return output;
+      return out;
     }
   </script>
 </body>
