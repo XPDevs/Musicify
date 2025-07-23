@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>📻 True Vinylify – MP3 Only</title>
+  <style>
+    body {
+      background: #1c1c1e;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    input[type="file"],
+    input[type="text"],
+    button,
+    select {
+      margin: 0.6rem 0;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      background: #2b2b2e;
+      color: white;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    input[type="text"]::placeholder {
+      color: #aaa;
+    }
+
+    button {
+      background: #2f80ed;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: #1c5dc3;
+    }
+
+    select {
+      background: #2b2b2e;
+    }
+
+    label {
+      margin-top: 1rem;
+    }
+
+    #status {
+      margin-top: 1.2rem;
+      font-size: 1rem;
+      color: #ccc;
+      text-align: center;
+    }
+
+    #progressBarContainer {
+      width: 100%;
+      max-width: 400px;
+      height: 10px;
+      background-color: #333;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 1rem;
+      display: none;
+    }
+
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background-color: #2f80ed;
+      transition: width 0.2s ease;
+    }
+
+    #downloadLink {
+      margin-top: 1.2rem;
+      padding: 0.75rem 1.2rem;
+      background: #2f80ed;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      display: none;
+      font-weight: bold;
+      transition: background 0.3s ease;
+    }
+
+    #downloadLink:hover {
+      background: #1c5dc3;
+    }
+
+    #audioPlayers {
+      margin-top: 2rem;
+      width: 100%;
+      max-width: 500px;
+      display: none;
+    }
+
+    audio {
+      width: 100%;
+      margin: 1rem 0;
+      border-radius: 6px;
+    }
+
+    p {
+      margin: 0.5rem 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📻 True Vinylify Your MP3</h1>
+
+  <input type="file" id="fileInput" accept=".mp3,audio/*" />
+  <input type="text" id="urlInput" placeholder="Or paste a direct MP3 URL" />
+
+  <label for="speedSelect">Playback Speed:</label>
+  <select id="speedSelect">
+    <option value="1.50">Very Fast (50% faster)</option>
+    <option value="1.25">25% faster</option>
+    <option value="1.10">10% faster</option>
+    <option value="1.05">5% faster</option>
+    <option value="1.00" selected>Normal speed</option>
+    <option value="0.99">1% slower</option>
+    <option value="0.98">2% slower</option>
+    <option value="0.97">3% slower</option>
+    <option value="0.96">4% slower</option>
+    <option value="0.95">5% slower</option>
+    <option value="0.94">6% slower</option>
+    <option value="0.93">7% slower</option>
+    <option value="0.92">8% slower</option>
+    <option value="0.91">9% slower</option>
+    <option value="0.90">10% slower</option>
+    <option value="0.85">15% slower</option>
+    <option value="0.80">20% slower</option>
+    <option value="0.75">25% slower</option>
+    <option value="0.70">30% slower</option>
+    <option value="0.50">Very Slow (50% slower)</option>
+  </select>
+
+  <button id="vinylifyBtn">🎶 Vinylify</button>
+
+  <p id="status">Waiting for file or URL...</p>
+
+  <div id="progressBarContainer">
+    <div id="progressBar"></div>
+  </div>
+
+  <div id="audioPlayers">
+    <p>🎵 Original Audio</p>
+    <audio id="originalAudio" controls></audio>
+
+    <p>📻 Vinylified Audio</p>
+    <audio id="vinylifiedAudio" controls></audio>
+  </div>
+
+  <a id="downloadLink" download>⬇️ Download Vinylified MP3</a>
+
+  <!-- Notification Sound -->
+  <audio id="notiAudio" src="noti.mp3" preload="auto"></audio>
+
+  <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const urlInput = document.getElementById("urlInput");
+    const vinylifyBtn = document.getElementById("vinylifyBtn");
+    const status = document.getElementById("status");
+    const downloadLink = document.getElementById("downloadLink");
+    const originalAudio = document.getElementById("originalAudio");
+    const vinylifiedAudio = document.getElementById("vinylifiedAudio");
+    const players = document.getElementById("audioPlayers");
+    const speedSelect = document.getElementById("speedSelect");
+    const progressBarContainer = document.getElementById("progressBarContainer");
+    const progressBar = document.getElementById("progressBar");
+    const notiAudio = document.getElementById("notiAudio");
+
+    vinylifyBtn.onclick = async () => {
+      let arrayBuffer;
+      let progress = 0;
+      progressBar.style.width = "0%";
+      progressBarContainer.style.display = "block";
+
+      const progressInterval = setInterval(() => {
+        if (progress < 95) {
+          progress += Math.random() * 2;
+          progressBar.style.width = `${progress.toFixed(0)}%`;
+        }
+      }, 100);
+
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        if (!file.name.toLowerCase().endsWith(".mp3")) {
+          alert("Only MP3 files allowed.");
+          return;
+        }
+        status.textContent = "Applying real vinyl effects...";
+        downloadLink.style.display = "none";
+        players.style.display = "none";
+        originalAudio.src = URL.createObjectURL(file);
+        arrayBuffer = await file.arrayBuffer();
+      } else if (urlInput.value.trim()) {
+        const url = urlInput.value.trim();
+        if (!url.toLowerCase().endsWith(".mp3")) {
+          alert("Please enter a direct MP3 URL ending with .mp3");
+          return;
+        }
+        status.textContent = "Checking MP3 URL validity...";
+        downloadLink.style.display = "none";
+        players.style.display = "none";
+        originalAudio.src = url;
+        try {
+          const headResponse = await fetch(url, { method: "HEAD" });
+          if (!headResponse.ok) throw new Error("MP3 URL is not reachable.");
+          const contentType = headResponse.headers.get("Content-Type") || "";
+          if (!contentType.includes("audio/mpeg") && !contentType.includes("audio/mp3"))
+            throw new Error("URL does not point to an MP3 file.");
+          status.textContent = "Fetching MP3 from URL and applying vinyl effects...";
+          const response = await fetch(url);
+          if (!response.ok) throw new Error("Failed to fetch MP3.");
+          arrayBuffer = await response.arrayBuffer();
+        } catch (e) {
+          status.textContent = "Error fetching MP3 from URL.";
+          alert("Error fetching MP3 from URL: " + e.message);
+          clearInterval(progressInterval);
+          progressBarContainer.style.display = "none";
+          return;
+        }
+      } else {
+        alert("Select an MP3 file or enter a direct MP3 URL first.");
+        clearInterval(progressInterval);
+        progressBarContainer.style.display = "none";
+        return;
+      }
+
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        const vinylSlowdownFactor = 1.06;
+        const speed = parseFloat(speedSelect.value);
+        const sampleRate = 22050;
+        const vinylDuration = (audioBuffer.duration * vinylSlowdownFactor) / speed;
+        const vinylSamplesLength = Math.floor(vinylDuration * sampleRate);
+        const staticDuration = 3;
+        const staticSamplesCount = staticDuration * sampleRate;
+        const totalSamples = vinylSamplesLength + staticSamplesCount;
+        const offlineCtx = new OfflineAudioContext(1, totalSamples, sampleRate);
+        const outputBuffer = offlineCtx.createBuffer(1, totalSamples, sampleRate);
+        const outputData = outputBuffer.getChannelData(0);
+        const inputL = audioBuffer.getChannelData(0);
+        const inputR = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
+        const crackleCount = 600;
+        const crackleIndexes = new Set();
+        while (crackleIndexes.size < crackleCount) {
+          crackleIndexes.add(Math.floor(Math.random() * vinylSamplesLength));
+        }
+
+        const sampleRateRatio = audioBuffer.sampleRate / sampleRate;
+        for (let i = 0; i < vinylSamplesLength; i++) {
+          let inputIndex = Math.floor(i * speed * sampleRateRatio);
+          if (inputIndex >= audioBuffer.length) inputIndex = audioBuffer.length - 1;
+          let sample = inputL[inputIndex];
+          if (inputR) sample = (inputL[inputIndex] + inputR[inputIndex]) / 2;
+          const wow = 0.003 * Math.sin(2 * Math.PI * 0.7 * i / sampleRate);
+          let warpedIndex = i + wow * sampleRate;
+          warpedIndex = Math.min(vinylSamplesLength - 1, Math.max(0, Math.floor(warpedIndex)));
+          warpedIndex = Math.floor(warpedIndex * speed * sampleRateRatio);
+          if (warpedIndex >= audioBuffer.length) warpedIndex = audioBuffer.length - 1;
+          sample = inputL[warpedIndex];
+          sample *= 1.5;
+          if (sample > 0.7) sample = 0.7;
+          if (sample < -0.7) sample = -0.7;
+          const hiss = (Math.random() - 0.5) * 0.02;
+          let crackle = 0;
+          if (crackleIndexes.has(i)) {
+            crackle = (Math.random() - 0.5) * 1.5;
+          }
+          const rumble = 0.003 * Math.sin(2 * Math.PI * 50 * i / sampleRate);
+          const amplitudeMod = 1 + 0.01 * Math.sin(2 * Math.PI * 1 * i / sampleRate);
+          outputData[i] = (sample * amplitudeMod) + hiss + crackle + rumble;
+        }
+
+        for (let i = vinylSamplesLength; i < totalSamples; i++) {
+          outputData[i] = (Math.random() - 0.5) * 0.1;
+        }
+
+        const source = offlineCtx.createBufferSource();
+        source.buffer = outputBuffer;
+        source.playbackRate.value = 1;
+
+        const lowpass = offlineCtx.createBiquadFilter();
+        lowpass.type = "lowpass";
+        lowpass.frequency.value = 4200;
+
+        const compressor = offlineCtx.createDynamicsCompressor();
+        compressor.threshold.value = -32;
+        compressor.knee.value = 20;
+        compressor.ratio.value = 4;
+        compressor.attack.value = 0.003;
+        compressor.release.value = 0.25;
+
+        source.connect(lowpass);
+        lowpass.connect(compressor);
+        compressor.connect(offlineCtx.destination);
+        source.start(0);
+
+        status.textContent = "Processing audio with vinyl effect...";
+        const renderedBuffer = await offlineCtx.startRendering();
+
+        const mp3Blob = encodeMP3(renderedBuffer);
+        const mp3URL = URL.createObjectURL(mp3Blob);
+        vinylifiedAudio.src = mp3URL;
+        downloadLink.href = mp3URL;
+        downloadLink.download = "vinylified.mp3";
+        downloadLink.style.display = "inline";
+        players.style.display = "block";
+
+// 🎉 Play notification sound
+notiAudio.play().catch(e => console.warn("Notification sound failed:", e));
+setTimeout(() => {
+  notiAudio.pause();
+  notiAudio.currentTime = 0;
+}, 3000); // Stop after 3 seconds
+
+        status.textContent = "Done! Enjoy your vinylified audio.";
+        progressBar.style.width = "100%";
+        clearInterval(progressInterval);
+        setTimeout(() => progressBarContainer.style.display = "none", 1000);
+      } catch (e) {
+        status.textContent = "Error processing audio.";
+        alert("Error during audio processing: " + e.message);
+        clearInterval(progressInterval);
+        progressBarContainer.style.display = "none";
+      }
+    };
+
+    function encodeMP3(audioBuffer) {
+      const mp3Encoder = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 64);
+      const samples = audioBuffer.getChannelData(0);
+      const sampleBlockSize = 1152;
+      let mp3Data = [];
+
+      for (let i = 0; i < samples.length; i += sampleBlockSize) {
+        const chunk = samples.subarray(i, i + sampleBlockSize);
+        const pcm = floatTo16BitPCM(chunk);
+        const mp3buf = mp3Encoder.encodeBuffer(pcm);
+        if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
+      }
+
+      const flush = mp3Encoder.flush();
+      if (flush.length > 0) mp3Data.push(new Int8Array(flush));
+      return new Blob(mp3Data, { type: "audio/mp3" });
+    }
+
+    function floatTo16BitPCM(input) {
+      const output = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        let s = Math.max(-1, Math.min(1, input[i]));
+        output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return output;
+    }
+  </script>
+</body>
+</html>
