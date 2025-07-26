@@ -119,7 +119,7 @@
 </head>
 <body>
 
-  <h1>📻 True Vinylify Your MP3</h1>
+  <h1>Vinylify</h1>
 
   <input type="file" id="fileInput" accept=".mp3,audio/*" />
   <input type="text" id="urlInput" placeholder="Or paste a direct MP3 URL" />
@@ -148,23 +148,23 @@
     <option value="0.50">Very Slow (50% slower)</option>
   </select>
 
-  <button id="vinylifyBtn">🎶 Vinylify</button>
+  <button id="vinylifyBtn">Vinylify</button>
 
-  <p id="status">Waiting for file or URL...</p>
+  <p id="status">Waiting for file or URL</p>
 
   <div id="progressBarContainer">
     <div id="progressBar"></div>
   </div>
 
   <div id="audioPlayers">
-    <p>🎵 Original Audio</p>
+    <p>Original Audio</p>
     <audio id="originalAudio" controls></audio>
 
-    <p>📻 Vinylified Audio</p>
+    <p>Vinylified Audio</p>
     <audio id="vinylifiedAudio" controls></audio>
   </div>
 
-  <a id="downloadLink" download>⬇️ Download Vinylified MP3</a>
+  <a id="downloadLink" download>Download</a>
 
   <!-- Notification Sound -->
   <audio id="notiAudio" src="noti.mp3" preload="auto"></audio>
@@ -203,7 +203,7 @@
           alert("Only MP3 files allowed.");
           return;
         }
-        status.textContent = "Applying real vinyl effects...";
+        status.textContent = "Applying real vinyl effects";
         downloadLink.style.display = "none";
         players.style.display = "none";
         originalAudio.src = URL.createObjectURL(file);
@@ -214,7 +214,7 @@
           alert("Please enter a direct MP3 URL ending with .mp3");
           return;
         }
-        status.textContent = "Checking MP3 URL validity...";
+        status.textContent = "Checking MP3 URL validity";
         downloadLink.style.display = "none";
         players.style.display = "none";
         originalAudio.src = url;
@@ -224,7 +224,7 @@
           const contentType = headResponse.headers.get("Content-Type") || "";
           if (!contentType.includes("audio/mpeg") && !contentType.includes("audio/mp3"))
             throw new Error("URL does not point to an MP3 file.");
-          status.textContent = "Fetching MP3 from URL and applying vinyl effects...";
+          status.textContent = "Fetching MP3 from URL and applying vinyl effects";
           const response = await fetch(url);
           if (!response.ok) throw new Error("Failed to fetch MP3.");
           arrayBuffer = await response.arrayBuffer();
@@ -320,7 +320,7 @@
         const mp3URL = URL.createObjectURL(mp3Blob);
         vinylifiedAudio.src = mp3URL;
         downloadLink.href = mp3URL;
-        downloadLink.download = "vinylified.mp3";
+        downloadLink.download = "audio.mp3";
         downloadLink.style.display = "inline";
         players.style.display = "block";
 
