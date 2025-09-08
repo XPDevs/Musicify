@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text to Speech (Large Text)</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px;
+    background: #f9f9f9;
+  }
+  h1 {
+    text-align: center;
+  }
+  textarea {
+    width: 100%;
+    max-width: 600px;
+    height: 250px;
+    padding: 10px;
+    font-size: 16px;
+    margin-bottom: 10px;
+    resize: vertical;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  button {
+    padding: 12px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    background-color: #0078d7;
+    color: white;
+    cursor: pointer;
+    flex: 1 1 120px;
+  }
+  button:hover {
+    background-color: #005fa3;
+  }
+  select {
+    padding: 10px;
+    font-size: 16px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+
+  /* Spinner */
+  #spinner {
+    display: none;
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #0078d7;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+</style>
+</head>
+<body>
+
+<h1>Text to Speech</h1>
+<textarea id="textInput" placeholder="Type or paste your text here..."></textarea>
+
+<div class="controls">
+  <button onclick="readText()">Read Aloud</button>
+  <button onclick="stopReading()">Stop</button>
+  <select id="voiceSelect"></select>
+</div>
+
+<div id="spinner"></div>
+
+<script>
+  const synth = window.speechSynthesis;
+  let utteranceQueue = [];
+  let isSpeaking = false;
+
+  const voiceSelect = document.getElementById('voiceSelect');
+  const spinner = document.getElementById('spinner');
+
+  // Populate voices
+  function populateVoices() {
+    const voices = synth.getVoices();
+    voiceSelect.innerHTML = '';
+    voices.forEach((voice, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      option.textContent = `${voice.name} (${voice.lang})`;
+      voiceSelect.appendChild(option);
+    });
+  }
+
+  populateVoices();
+  if (speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = populateVoices;
+  }
+
+  function splitText(text, maxLength = 2000) {
+    const chunks = [];
+    let start = 0;
+    while (start < text.length) {
+      let end = start + maxLength;
+      if (end < text.length) {
+        let lastSpace = text.lastIndexOf(' ', end);
+        if (lastSpace > start) end = lastSpace;
+      }
+      chunks.push(text.slice(start, end));
+      start = end;
+    }
+    return chunks;
+  }
+
+  function readText() {
+    const text = document.getElementById('textInput').value.trim();
+    if (!text) return alert('Please enter some text!');
+
+    spinner.style.display = 'block';
+
+    // Simulate loading for very large text
+    setTimeout(() => {
+      // Split text into chunks for speech
+      utteranceQueue = splitText(text);
+      spinner.style.display = 'none'; // Hide spinner after processing
+      speakNext();
+    }, 100); // small delay to show spinner
+  }
+
+  function speakNext() {
+    if (utteranceQueue.length === 0) {
+      isSpeaking = false;
+      return;
+    }
+    isSpeaking = true;
+    const chunk = utteranceQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(chunk);
+    const selectedVoice = synth.getVoices()[voiceSelect.value];
+    if (selectedVoice) utterance.voice = selectedVoice;
+    utterance.rate = 1;
+    utterance.pitch = 1;
+
+    utterance.onend = () => speakNext();
+    synth.speak(utterance);
+  }
+
+  function stopReading() {
+    utteranceQueue = [];
+    if (synth.speaking) synth.cancel();
+    spinner.style.display = 'none';
+    isSpeaking = false;
+  }
+</script>
+
+</body>
+</html>
