@@ -163,7 +163,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
   <script>
-    const fileInput = document.getElementById("fileInput");
+const fileInput = document.getElementById("fileInput");
 const urlInput = document.getElementById("urlInput");
 const eightDifyBtn = document.getElementById("eightDifyBtn");
 const status = document.getElementById("status");
@@ -192,36 +192,12 @@ eightDifyBtn.onclick = async () => {
     // Load file or URL
     if (fileInput.files.length > 0) {
         const file = fileInput.files[0];
-        if (!file.name.toLowerCase().endsWith(".mp3")) {
-            alert("Only MP3 files allowed.");
-            clearInterval(progressInterval);
-            progressBarContainer.style.display = "none";
-            return;
-        }
-        status.textContent = "Applying 8D effect...";
-        downloadLink.style.display = "none";
-        players.style.display = "none";
         originalAudio.src = URL.createObjectURL(file);
         arrayBuffer = await file.arrayBuffer();
     } else if (urlInput.value.trim()) {
         const url = urlInput.value.trim();
-        if (!url.toLowerCase().endsWith(".mp3")) {
-            alert("Please enter a direct MP3 URL ending with .mp3");
-            clearInterval(progressInterval);
-            progressBarContainer.style.display = "none";
-            return;
-        }
-        status.textContent = "Fetching MP3 from URL...";
-        downloadLink.style.display = "none";
-        players.style.display = "none";
         originalAudio.src = url;
         const response = await fetch(url);
-        if (!response.ok) {
-            alert("Failed to fetch MP3.");
-            clearInterval(progressInterval);
-            progressBarContainer.style.display = "none";
-            return;
-        }
         arrayBuffer = await response.arrayBuffer();
     } else {
         alert("Select an MP3 file or enter a direct MP3 URL first.");
@@ -231,44 +207,43 @@ eightDifyBtn.onclick = async () => {
     }
 
     try {
-        const audioCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(2, 44100 * 40, 44100);
+        const audioCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
+            2,
+            decodedDataLength(arrayBuffer, 44100),
+            44100
+        );
         const decodedData = await audioCtx.decodeAudioData(arrayBuffer);
 
         const source = audioCtx.createBufferSource();
         source.buffer = decodedData;
 
-        // Create a StereoPannerNode
         const panner = audioCtx.createStereoPanner();
-
-        // Connect source -> panner -> destination
         source.connect(panner).connect(audioCtx.destination);
 
-        // Create an automation curve for panning
-        const panCurve = new Float32Array(decodedData.length);
-        const sampleRate = audioCtx.sampleRate;
-        const totalSamples = decodedData.length;
+        const duration = decodedData.duration;
+        const panParam = panner.pan;
 
-        // Smooth 8D effect: sine wave panning left <-> right
-        for (let i = 0; i < totalSamples; i++) {
-            const t = i / sampleRate;
-            // full left/right every ~2 seconds, center in between
-            panCurve[i] = Math.sin(2 * Math.PI * 0.25 * t); // adjust 0.25 for speed
-        }
+        // 8D Pattern: Both -> Left -> Both -> Right -> Both
+        // Smooth randomized segments
+        const minSegment = 2; // seconds
+        const maxSegment = 6; // seconds
+        let currentTime = 0;
+        let sequence = [0, -1, 0, 1, 0]; // starting with both
 
-        // Apply panning via automation
-        const pannerParam = panner.pan;
-        pannerParam.setValueAtTime(0, 0);
+        panParam.setValueAtTime(sequence[0], currentTime);
 
-        // Apply a few keyframe automation to emulate L->R->Both
-        let duration = decodedData.duration;
-        const steps = 8; // segments
-        for (let s = 0; s <= steps; s++) {
-            const time = (s / steps) * duration;
-            let value;
-            if (s % 4 === 0) value = -1; // left
-            else if (s % 4 === 1) value = 1; // right
-            else value = 0; // center
-            pannerParam.linearRampToValueAtTime(value, time);
+        while (currentTime < duration) {
+            for (let i = 1; i < sequence.length; i++) {
+                if (currentTime >= duration) break;
+
+                // Randomize segment duration
+                const segmentDuration = Math.min(duration - currentTime, minSegment + Math.random() * (maxSegment - minSegment));
+
+                // Smooth transition to next pan position
+                panParam.linearRampToValueAtTime(sequence[i], currentTime + segmentDuration);
+
+                currentTime += segmentDuration;
+            }
         }
 
         source.start(0);
@@ -285,12 +260,9 @@ eightDifyBtn.onclick = async () => {
         players.style.display = "block";
 
         notiAudio.play().catch(e => console.warn("Notification sound failed:", e));
-        setTimeout(() => {
-            notiAudio.pause();
-            notiAudio.currentTime = 0;
-        }, 3000);
+        setTimeout(() => { notiAudio.pause(); notiAudio.currentTime = 0; }, 3000);
 
-        status.textContent = "Done! Enjoy your smooth 8D audio.";
+        status.textContent = "Done! Enjoy your dynamic 8D audio.";
         progressBar.style.width = "100%";
         clearInterval(progressInterval);
         setTimeout(() => progressBarContainer.style.display = "none", 1000);
@@ -302,6 +274,13 @@ eightDifyBtn.onclick = async () => {
         progressBarContainer.style.display = "none";
     }
 };
+
+// Helper to estimate buffer length (approximation)
+function decodedDataLength(arrayBuffer, sampleRate) {
+    const byteLength = arrayBuffer.byteLength;
+    const approxDuration = byteLength / (128 * 1024); // rough MP3 bitrate assumption
+    return Math.ceil(approxDuration * sampleRate);
+}
 
 function encodeMP3(audioBuffer) {
     const mp3Encoder = new lamejs.Mp3Encoder(2, audioBuffer.sampleRate, 128);
