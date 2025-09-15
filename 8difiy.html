@@ -164,48 +164,52 @@
   <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
   <script>
     const fileInput = document.getElementById("fileInput");
-    const urlInput = document.getElementById("urlInput");
-    const eightDifyBtn = document.getElementById("eightDifyBtn");
-    const status = document.getElementById("status");
-    const downloadLink = document.getElementById("downloadLink");
-    const originalAudio = document.getElementById("originalAudio");
-    const eightDAudio = document.getElementById("eightDAudio");
-    const players = document.getElementById("audioPlayers");
-    const speedSelect = document.getElementById("speedSelect");
-    const progressBarContainer = document.getElementById("progressBarContainer");
-    const progressBar = document.getElementById("progressBar");
-    const notiAudio = document.getElementById("notiAudio");
+const urlInput = document.getElementById("urlInput");
+const eightDifyBtn = document.getElementById("eightDifyBtn");
+const status = document.getElementById("status");
+const downloadLink = document.getElementById("downloadLink");
+const originalAudio = document.getElementById("originalAudio");
+const eightDAudio = document.getElementById("eightDAudio");
+const players = document.getElementById("audioPlayers");
+const speedSelect = document.getElementById("speedSelect");
+const progressBarContainer = document.getElementById("progressBarContainer");
+const progressBar = document.getElementById("progressBar");
+const notiAudio = document.getElementById("notiAudio");
 
-    eightDifyBtn.onclick = async () => {
-      let arrayBuffer;
-      let progress = 0;
-      progressBar.style.width = "0%";
-      progressBarContainer.style.display = "block";
+eightDifyBtn.onclick = async () => {
+    let arrayBuffer;
+    let progress = 0;
+    progressBar.style.width = "0%";
+    progressBarContainer.style.display = "block";
 
-      const progressInterval = setInterval(() => {
+    const progressInterval = setInterval(() => {
         if (progress < 95) {
-          progress += Math.random() * 2;
-          progressBar.style.width = `${progress.toFixed(0)}%`;
+            progress += Math.random() * 2;
+            progressBar.style.width = `${progress.toFixed(0)}%`;
         }
-      }, 100);
+    }, 100);
 
-      // Load file or URL
-      if (fileInput.files.length > 0) {
+    // Load file or URL
+    if (fileInput.files.length > 0) {
         const file = fileInput.files[0];
         if (!file.name.toLowerCase().endsWith(".mp3")) {
-          alert("Only MP3 files allowed.");
-          return;
+            alert("Only MP3 files allowed.");
+            clearInterval(progressInterval);
+            progressBarContainer.style.display = "none";
+            return;
         }
         status.textContent = "Applying 8D effect...";
         downloadLink.style.display = "none";
         players.style.display = "none";
         originalAudio.src = URL.createObjectURL(file);
         arrayBuffer = await file.arrayBuffer();
-      } else if (urlInput.value.trim()) {
+    } else if (urlInput.value.trim()) {
         const url = urlInput.value.trim();
         if (!url.toLowerCase().endsWith(".mp3")) {
-          alert("Please enter a direct MP3 URL ending with .mp3");
-          return;
+            alert("Please enter a direct MP3 URL ending with .mp3");
+            clearInterval(progressInterval);
+            progressBarContainer.style.display = "none";
+            return;
         }
         status.textContent = "Fetching MP3 from URL...";
         downloadLink.style.display = "none";
@@ -213,51 +217,64 @@
         originalAudio.src = url;
         const response = await fetch(url);
         if (!response.ok) {
-          alert("Failed to fetch MP3.");
-          clearInterval(progressInterval);
-          return;
+            alert("Failed to fetch MP3.");
+            clearInterval(progressInterval);
+            progressBarContainer.style.display = "none";
+            return;
         }
         arrayBuffer = await response.arrayBuffer();
-      } else {
+    } else {
         alert("Select an MP3 file or enter a direct MP3 URL first.");
         clearInterval(progressInterval);
         progressBarContainer.style.display = "none";
         return;
-      }
+    }
 
-      try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        const offlineCtx = new OfflineAudioContext(2, audioBuffer.length, audioBuffer.sampleRate);
+    try {
+        const audioCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(2, 44100 * 40, 44100);
+        const decodedData = await audioCtx.decodeAudioData(arrayBuffer);
 
-        const source = offlineCtx.createBufferSource();
-        source.buffer = audioBuffer;
+        const source = audioCtx.createBufferSource();
+        source.buffer = decodedData;
 
-        const panSpeed = 0.002; // Speed of 8D rotation
-        const totalSamples = audioBuffer.length;
-        const leftData = offlineCtx.createBuffer(1, totalSamples, audioBuffer.sampleRate).getChannelData(0);
-        const rightData = offlineCtx.createBuffer(1, totalSamples, audioBuffer.sampleRate).getChannelData(0);
+        // Create a StereoPannerNode
+        const panner = audioCtx.createStereoPanner();
 
-        const inputL = audioBuffer.getChannelData(0);
-        const inputR = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : inputL;
+        // Connect source -> panner -> destination
+        source.connect(panner).connect(audioCtx.destination);
 
+        // Create an automation curve for panning
+        const panCurve = new Float32Array(decodedData.length);
+        const sampleRate = audioCtx.sampleRate;
+        const totalSamples = decodedData.length;
+
+        // Smooth 8D effect: sine wave panning left <-> right
         for (let i = 0; i < totalSamples; i++) {
-          const pan = Math.sin(i * panSpeed * Math.PI * 2);
-          leftData[i] = inputL[i] * (1 - pan) / 2;
-          rightData[i] = inputR[i] * (1 + pan) / 2;
+            const t = i / sampleRate;
+            // full left/right every ~2 seconds, center in between
+            panCurve[i] = Math.sin(2 * Math.PI * 0.25 * t); // adjust 0.25 for speed
         }
 
-        const newBuffer = offlineCtx.createBuffer(2, totalSamples, audioBuffer.sampleRate);
-        newBuffer.getChannelData(0).set(leftData);
-        newBuffer.getChannelData(1).set(rightData);
+        // Apply panning via automation
+        const pannerParam = panner.pan;
+        pannerParam.setValueAtTime(0, 0);
 
-        const finalSource = offlineCtx.createBufferSource();
-        finalSource.buffer = newBuffer;
-        finalSource.connect(offlineCtx.destination);
-        finalSource.start(0);
+        // Apply a few keyframe automation to emulate L->R->Both
+        let duration = decodedData.duration;
+        const steps = 8; // segments
+        for (let s = 0; s <= steps; s++) {
+            const time = (s / steps) * duration;
+            let value;
+            if (s % 4 === 0) value = -1; // left
+            else if (s % 4 === 1) value = 1; // right
+            else value = 0; // center
+            pannerParam.linearRampToValueAtTime(value, time);
+        }
 
-        status.textContent = "Processing audio with 8D effect...";
-        const renderedBuffer = await offlineCtx.startRendering();
+        source.start(0);
+
+        status.textContent = "Rendering 8D audio...";
+        const renderedBuffer = await audioCtx.startRendering();
 
         const mp3Blob = encodeMP3(renderedBuffer);
         const mp3URL = URL.createObjectURL(mp3Blob);
@@ -269,49 +286,51 @@
 
         notiAudio.play().catch(e => console.warn("Notification sound failed:", e));
         setTimeout(() => {
-          notiAudio.pause();
-          notiAudio.currentTime = 0;
+            notiAudio.pause();
+            notiAudio.currentTime = 0;
         }, 3000);
 
-        status.textContent = "Done! Enjoy your 8D audio.";
+        status.textContent = "Done! Enjoy your smooth 8D audio.";
         progressBar.style.width = "100%";
         clearInterval(progressInterval);
         setTimeout(() => progressBarContainer.style.display = "none", 1000);
-      } catch (e) {
+
+    } catch (e) {
         status.textContent = "Error processing audio.";
         alert("Error during audio processing: " + e.message);
         clearInterval(progressInterval);
         progressBarContainer.style.display = "none";
-      }
-    };
+    }
+};
 
-    function encodeMP3(audioBuffer) {
-      const mp3Encoder = new lamejs.Mp3Encoder(2, audioBuffer.sampleRate, 128);
-      const left = audioBuffer.getChannelData(0);
-      const right = audioBuffer.getChannelData(1);
-      const blockSize = 1152;
-      let mp3Data = [];
+function encodeMP3(audioBuffer) {
+    const mp3Encoder = new lamejs.Mp3Encoder(2, audioBuffer.sampleRate, 128);
+    const left = audioBuffer.getChannelData(0);
+    const right = audioBuffer.getChannelData(1);
+    const blockSize = 1152;
+    let mp3Data = [];
 
-      for (let i = 0; i < left.length; i += blockSize) {
+    for (let i = 0; i < left.length; i += blockSize) {
         const leftChunk = floatTo16BitPCM(left.subarray(i, i + blockSize));
         const rightChunk = floatTo16BitPCM(right.subarray(i, i + blockSize));
         const mp3buf = mp3Encoder.encodeBuffer(leftChunk, rightChunk);
         if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
-      }
-
-      const flush = mp3Encoder.flush();
-      if (flush.length > 0) mp3Data.push(new Int8Array(flush));
-      return new Blob(mp3Data, { type: "audio/mp3" });
     }
 
-    function floatTo16BitPCM(input) {
-      const output = new Int16Array(input.length);
-      for (let i = 0; i < input.length; i++) {
+    const flush = mp3Encoder.flush();
+    if (flush.length > 0) mp3Data.push(new Int8Array(flush));
+    return new Blob(mp3Data, { type: "audio/mp3" });
+}
+
+function floatTo16BitPCM(input) {
+    const output = new Int16Array(input.length);
+    for (let i = 0; i < input.length; i++) {
         let s = Math.max(-1, Math.min(1, input[i]));
         output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-      }
-      return output;
     }
+    return output;
+}
+
   </script>
 </body>
 </html>
