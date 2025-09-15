@@ -165,13 +165,12 @@
   <script>
 const fileInput = document.getElementById("fileInput");
 const urlInput = document.getElementById("urlInput");
-const eightDifyBtn = document.getElementById("eightDifyBtn");
+const eightDifyBtn = document.getElementById("vinylifyBtn"); // replace with your button id
 const status = document.getElementById("status");
 const downloadLink = document.getElementById("downloadLink");
 const originalAudio = document.getElementById("originalAudio");
-const eightDAudio = document.getElementById("eightDAudio");
+const eightDAudio = document.getElementById("vinylifiedAudio"); // your output audio
 const players = document.getElementById("audioPlayers");
-const speedSelect = document.getElementById("speedSelect");
 const progressBarContainer = document.getElementById("progressBarContainer");
 const progressBar = document.getElementById("progressBar");
 const notiAudio = document.getElementById("notiAudio");
@@ -207,50 +206,54 @@ eightDifyBtn.onclick = async () => {
     }
 
     try {
+        // Decode using temporary AudioContext to get full duration
+        const audioCtxTemp = new (window.AudioContext || window.webkitAudioContext)();
+        const decodedData = await audioCtxTemp.decodeAudioData(arrayBuffer);
+
+        // Offline context for full-length rendering + 2s safe zone
+        const sampleRate = decodedData.sampleRate || 44100;
+        const totalSamples = Math.ceil((decodedData.duration + 2) * sampleRate);
+
         const audioCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
             2,
-            decodedDataLength(arrayBuffer, 44100),
-            44100
+            totalSamples,
+            sampleRate
         );
-        const decodedData = await audioCtx.decodeAudioData(arrayBuffer);
 
+        // Create source and panner
         const source = audioCtx.createBufferSource();
         source.buffer = decodedData;
 
         const panner = audioCtx.createStereoPanner();
         source.connect(panner).connect(audioCtx.destination);
 
-        const duration = decodedData.duration;
+        const duration = decodedData.duration + 2; // include safe zone
         const panParam = panner.pan;
 
-        // 8D Pattern: Both -> Left -> Both -> Right -> Both
-        // Smooth randomized segments
+        // 8D pattern: Both → Left → Both → Right → Both
         const minSegment = 2; // seconds
         const maxSegment = 6; // seconds
         let currentTime = 0;
-        let sequence = [0, -1, 0, 1, 0]; // starting with both
+        const sequence = [0, -1, 0, 1, 0]; // pan positions
 
+        // Start in both ears
         panParam.setValueAtTime(sequence[0], currentTime);
 
         while (currentTime < duration) {
             for (let i = 1; i < sequence.length; i++) {
                 if (currentTime >= duration) break;
-
-                // Randomize segment duration
                 const segmentDuration = Math.min(duration - currentTime, minSegment + Math.random() * (maxSegment - minSegment));
-
-                // Smooth transition to next pan position
                 panParam.linearRampToValueAtTime(sequence[i], currentTime + segmentDuration);
-
                 currentTime += segmentDuration;
             }
         }
 
         source.start(0);
 
-        status.textContent = "Rendering 8D audio...";
+        status.textContent = "Rendering full-length 8D audio...";
         const renderedBuffer = await audioCtx.startRendering();
 
+        // Encode to MP3
         const mp3Blob = encodeMP3(renderedBuffer);
         const mp3URL = URL.createObjectURL(mp3Blob);
         eightDAudio.src = mp3URL;
@@ -259,10 +262,11 @@ eightDifyBtn.onclick = async () => {
         downloadLink.style.display = "inline";
         players.style.display = "block";
 
+        // Play notification
         notiAudio.play().catch(e => console.warn("Notification sound failed:", e));
         setTimeout(() => { notiAudio.pause(); notiAudio.currentTime = 0; }, 3000);
 
-        status.textContent = "Done! Enjoy your dynamic 8D audio.";
+        status.textContent = "Done! Enjoy your full-length dynamic 8D audio.";
         progressBar.style.width = "100%";
         clearInterval(progressInterval);
         setTimeout(() => progressBarContainer.style.display = "none", 1000);
@@ -275,13 +279,7 @@ eightDifyBtn.onclick = async () => {
     }
 };
 
-// Helper to estimate buffer length (approximation)
-function decodedDataLength(arrayBuffer, sampleRate) {
-    const byteLength = arrayBuffer.byteLength;
-    const approxDuration = byteLength / (128 * 1024); // rough MP3 bitrate assumption
-    return Math.ceil(approxDuration * sampleRate);
-}
-
+// Encode AudioBuffer to MP3
 function encodeMP3(audioBuffer) {
     const mp3Encoder = new lamejs.Mp3Encoder(2, audioBuffer.sampleRate, 128);
     const left = audioBuffer.getChannelData(0);
@@ -301,6 +299,7 @@ function encodeMP3(audioBuffer) {
     return new Blob(mp3Data, { type: "audio/mp3" });
 }
 
+// Convert float audio to 16-bit PCM
 function floatTo16BitPCM(input) {
     const output = new Int16Array(input.length);
     for (let i = 0; i < input.length; i++) {
@@ -309,7 +308,6 @@ function floatTo16BitPCM(input) {
     }
     return output;
 }
-
-  </script>
+</script>
 </body>
 </html>
