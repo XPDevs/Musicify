@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎧 8Dify – MP3 Only</title>
+  <style>
+    body {
+      background: #1c1c1e;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    input[type="file"],
+    input[type="text"],
+    button,
+    select {
+      margin: 0.6rem 0;
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      background: #2b2b2e;
+      color: white;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    input[type="text"]::placeholder {
+      color: #aaa;
+    }
+
+    button {
+      background: #2f80ed;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: #1c5dc3;
+    }
+
+    select {
+      background: #2b2b2e;
+    }
+
+    label {
+      margin-top: 1rem;
+    }
+
+    #status {
+      margin-top: 1.2rem;
+      font-size: 1rem;
+      color: #ccc;
+      text-align: center;
+    }
+
+    #progressBarContainer {
+      width: 100%;
+      max-width: 400px;
+      height: 10px;
+      background-color: #333;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 1rem;
+      display: none;
+    }
+
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background-color: #2f80ed;
+      transition: width 0.2s ease;
+    }
+
+    #downloadLink {
+      margin-top: 1.2rem;
+      padding: 0.75rem 1.2rem;
+      background: #2f80ed;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      display: none;
+      font-weight: bold;
+      transition: background 0.3s ease;
+    }
+
+    #downloadLink:hover {
+      background: #1c5dc3;
+    }
+
+    #audioPlayers {
+      margin-top: 2rem;
+      width: 100%;
+      max-width: 500px;
+      display: none;
+    }
+
+    audio {
+      width: 100%;
+      margin: 1rem 0;
+      border-radius: 6px;
+    }
+
+    p {
+      margin: 0.5rem 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>8Dify</h1>
+
+  <input type="file" id="fileInput" accept=".mp3,audio/*" />
+  <input type="text" id="urlInput" placeholder="Or paste a direct MP3 URL" />
+
+  <label for="speedSelect">Playback Speed:</label>
+  <select id="speedSelect">
+    <option value="1.50">Very Fast (50% faster)</option>
+    <option value="1.25">25% faster</option>
+    <option value="1.10">10% faster</option>
+    <option value="1.05">5% faster</option>
+    <option value="1.00" selected>Normal speed</option>
+    <option value="0.99">1% slower</option>
+    <option value="0.95">5% slower</option>
+    <option value="0.90">10% slower</option>
+    <option value="0.85">15% slower</option>
+    <option value="0.80">20% slower</option>
+    <option value="0.75">25% slower</option>
+    <option value="0.70">30% slower</option>
+  </select>
+
+  <button id="eightDifyBtn">8Dify</button>
+
+  <p id="status">Waiting for file or URL</p>
+
+  <div id="progressBarContainer">
+    <div id="progressBar"></div>
+  </div>
+
+  <div id="audioPlayers">
+    <p>Original Audio</p>
+    <audio id="originalAudio" controls></audio>
+
+    <p>8D Audio</p>
+    <audio id="eightDAudio" controls></audio>
+  </div>
+
+  <a id="downloadLink" download>Download</a>
+
+  <!-- Notification Sound -->
+  <audio id="notiAudio" src="noti.mp3" preload="auto"></audio>
+
+  <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js"></script>
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const urlInput = document.getElementById("urlInput");
+    const eightDifyBtn = document.getElementById("eightDifyBtn");
+    const status = document.getElementById("status");
+    const downloadLink = document.getElementById("downloadLink");
+    const originalAudio = document.getElementById("originalAudio");
+    const eightDAudio = document.getElementById("eightDAudio");
+    const players = document.getElementById("audioPlayers");
+    const speedSelect = document.getElementById("speedSelect");
+    const progressBarContainer = document.getElementById("progressBarContainer");
+    const progressBar = document.getElementById("progressBar");
+    const notiAudio = document.getElementById("notiAudio");
+
+    eightDifyBtn.onclick = async () => {
+      let arrayBuffer;
+      let progress = 0;
+      progressBar.style.width = "0%";
+      progressBarContainer.style.display = "block";
+
+      const progressInterval = setInterval(() => {
+        if (progress < 95) {
+          progress += Math.random() * 2;
+          progressBar.style.width = `${progress.toFixed(0)}%`;
+        }
+      }, 100);
+
+      // Load file or URL
+      if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        if (!file.name.toLowerCase().endsWith(".mp3")) {
+          alert("Only MP3 files allowed.");
+          return;
+        }
+        status.textContent = "Applying 8D effect...";
+        downloadLink.style.display = "none";
+        players.style.display = "none";
+        originalAudio.src = URL.createObjectURL(file);
+        arrayBuffer = await file.arrayBuffer();
+      } else if (urlInput.value.trim()) {
+        const url = urlInput.value.trim();
+        if (!url.toLowerCase().endsWith(".mp3")) {
+          alert("Please enter a direct MP3 URL ending with .mp3");
+          return;
+        }
+        status.textContent = "Fetching MP3 from URL...";
+        downloadLink.style.display = "none";
+        players.style.display = "none";
+        originalAudio.src = url;
+        const response = await fetch(url);
+        if (!response.ok) {
+          alert("Failed to fetch MP3.");
+          clearInterval(progressInterval);
+          return;
+        }
+        arrayBuffer = await response.arrayBuffer();
+      } else {
+        alert("Select an MP3 file or enter a direct MP3 URL first.");
+        clearInterval(progressInterval);
+        progressBarContainer.style.display = "none";
+        return;
+      }
+
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        const offlineCtx = new OfflineAudioContext(2, audioBuffer.length, audioBuffer.sampleRate);
+
+        const source = offlineCtx.createBufferSource();
+        source.buffer = audioBuffer;
+
+        const panSpeed = 0.002; // Speed of 8D rotation
+        const totalSamples = audioBuffer.length;
+        const leftData = offlineCtx.createBuffer(1, totalSamples, audioBuffer.sampleRate).getChannelData(0);
+        const rightData = offlineCtx.createBuffer(1, totalSamples, audioBuffer.sampleRate).getChannelData(0);
+
+        const inputL = audioBuffer.getChannelData(0);
+        const inputR = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : inputL;
+
+        for (let i = 0; i < totalSamples; i++) {
+          const pan = Math.sin(i * panSpeed * Math.PI * 2);
+          leftData[i] = inputL[i] * (1 - pan) / 2;
+          rightData[i] = inputR[i] * (1 + pan) / 2;
+        }
+
+        const newBuffer = offlineCtx.createBuffer(2, totalSamples, audioBuffer.sampleRate);
+        newBuffer.getChannelData(0).set(leftData);
+        newBuffer.getChannelData(1).set(rightData);
+
+        const finalSource = offlineCtx.createBufferSource();
+        finalSource.buffer = newBuffer;
+        finalSource.connect(offlineCtx.destination);
+        finalSource.start(0);
+
+        status.textContent = "Processing audio with 8D effect...";
+        const renderedBuffer = await offlineCtx.startRendering();
+
+        const mp3Blob = encodeMP3(renderedBuffer);
+        const mp3URL = URL.createObjectURL(mp3Blob);
+        eightDAudio.src = mp3URL;
+        downloadLink.href = mp3URL;
+        downloadLink.download = "audio_8d.mp3";
+        downloadLink.style.display = "inline";
+        players.style.display = "block";
+
+        notiAudio.play().catch(e => console.warn("Notification sound failed:", e));
+        setTimeout(() => {
+          notiAudio.pause();
+          notiAudio.currentTime = 0;
+        }, 3000);
+
+        status.textContent = "Done! Enjoy your 8D audio.";
+        progressBar.style.width = "100%";
+        clearInterval(progressInterval);
+        setTimeout(() => progressBarContainer.style.display = "none", 1000);
+      } catch (e) {
+        status.textContent = "Error processing audio.";
+        alert("Error during audio processing: " + e.message);
+        clearInterval(progressInterval);
+        progressBarContainer.style.display = "none";
+      }
+    };
+
+    function encodeMP3(audioBuffer) {
+      const mp3Encoder = new lamejs.Mp3Encoder(2, audioBuffer.sampleRate, 128);
+      const left = audioBuffer.getChannelData(0);
+      const right = audioBuffer.getChannelData(1);
+      const blockSize = 1152;
+      let mp3Data = [];
+
+      for (let i = 0; i < left.length; i += blockSize) {
+        const leftChunk = floatTo16BitPCM(left.subarray(i, i + blockSize));
+        const rightChunk = floatTo16BitPCM(right.subarray(i, i + blockSize));
+        const mp3buf = mp3Encoder.encodeBuffer(leftChunk, rightChunk);
+        if (mp3buf.length > 0) mp3Data.push(new Int8Array(mp3buf));
+      }
+
+      const flush = mp3Encoder.flush();
+      if (flush.length > 0) mp3Data.push(new Int8Array(flush));
+      return new Blob(mp3Data, { type: "audio/mp3" });
+    }
+
+    function floatTo16BitPCM(input) {
+      const output = new Int16Array(input.length);
+      for (let i = 0; i < input.length; i++) {
+        let s = Math.max(-1, Math.min(1, input[i]));
+        output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return output;
+    }
+  </script>
+</body>
+</html>
